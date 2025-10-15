@@ -11,4 +11,4 @@ RUN mamba create --file autoterm.yml -y && \
 
 ENV PATH=/opt/conda/envs/autoterm_env/bin:$PATH
 
-# RUN chmod +x /opt/conda/envs/autoterm_env/bin/python
+RUN chmod +x /opt/conda/envs/autoterm_env/bin/python
