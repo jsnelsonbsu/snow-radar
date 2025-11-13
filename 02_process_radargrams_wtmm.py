@@ -59,7 +59,7 @@ def read_mat_data(filepath):
 [PDATA, TWT] = read_mat_data(rdpath+'TWT_testfile.mat')
 TWT = TWT.reshape(TWT.shape[1],1)
 TWT_interval = np.mean(np.diff(TWT.flatten()))
-
+TWT = TWT[int(len(TWT)/2):]
 
 # In[10]:
 
