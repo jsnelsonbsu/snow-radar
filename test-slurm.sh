@@ -24,4 +24,4 @@ module load apptainer/1.2.5
 # 4) wtmm_scale: spatial scale to run the wavelet transform [in pixels] (e.g., 1000)
 # 5) size_thresh: minimum length threshold to filter the wavelet output traces [in pixels] (e.g., 200)
 # 6) mod_thresh_multiplier: minimum modulus value as a fraction of the mean throughout the image (e.g., 1 = mean, 1.5 = 150% of the mean, 0.8 = 80% of the mean)
-apptainer run /cm/shared/containers/autoterm.sif python3 /bsushare/hpmarshall-shared/FMCW-radar/02_process_radargrams_wtmm.py /bsushare/hpmarshall-shared/FMCW-radar/GM2020/FMCW_processed/ /bsushare/hpmarshall-shared/FMCW-radar/GM2020/FMCW_processed/ $1 $2 $3 $4
+apptainer run /cm/shared/containers/autoterm.sif python3 /bsuhome/jukesliu/Documents/GitHub/snow-radar/snow-radar/02_process_radargrams_wtmm.py /bsushare/hpmarshall-shared/FMCW-radar/GM2020/FMCW_processed/ /bsushare/hpmarshall-shared/FMCW-radar/GM2020/FMCW_wavelet_processed/ $1 $2 $3 $4

@@ -21,10 +21,11 @@ from Xsmurf_functions import *
 args = sys.argv # grab input arguments ################
 
 rdpath = args[1]; outpath = args[2] # full paths to folders
-Isurf_thresh = int(args[3]) # maximum depth of surface picks (in index number)
-wtmm_scale = int(args[4]) # list of wtmm scales to test
-size_thresh = int(args[5]) # list of chain size minimums to test
-mod_thresh_multiplier = int(args[6]) # minimum modulus value (as a fraction of the mean in the entire image)
+Isurf_min = int(args[3]) # minimum depth of surface picks (in index number)
+Isurf_max = int(args[4]) # maximum depth of surface picks (in index number)
+wtmm_scale = int(args[5]) # list of wtmm scales to test
+size_thresh = int(args[6]) # list of chain size minimums to test
+mod_thresh_multiplier = float(args[7]) # minimum modulus value (as a fraction of the mean in the entire image)
 # (e.g., 1 = mean, 1.5 = 150% of the mean value, 0.8 = 80% of the mean)
 #########################################################
 
@@ -49,18 +50,9 @@ if not os.path.exists(outpath):
 # In[2]:
 
 
-# grab TWT file
-def read_mat_data(filepath):
-    rd = scipy.io.loadmat(filepath) # load the mat file
-    PDATA = rd['PDATA']
-    TWT = rd['TWT']
-    return PDATA, TWT
-
-[PDATA, TWT] = read_mat_data(rdpath+'TWT_testfile.mat')
-TWT = TWT.reshape(TWT.shape[1],1)
-TWT_interval = np.mean(np.diff(TWT.flatten()))
-TWT = TWT[int(len(TWT)/2):]
-
+# grab TWT
+TWT_df = pd.read_csv(rdpath+'TWT_vector.csv')
+TWT = np.array(TWT_df.TWT)
 # In[10]:
 
 
@@ -69,9 +61,9 @@ hsplit_idxs = np.arange(0, all_rd.shape[1], hmin_idx)
 hsplit_idxs = hsplit_idxs[1:] # grab split locations
 
 counter = 1
-for i in range(0, len(hsplit_idxs)-1): 
+for i in range(0, len(hsplit_idxs)): 
     # split radargrams and coordinates
-    if i == len(hsplit_idxs)-2: # for the last split, include all the way to the end of the all_rd
+    if i == len(hsplit_idxs): # for the last split, include all the way to the end of the all_rd
         rd_split = all_rd[:,hsplit_idxs[i]:all_rd.shape[1]] 
         xs_split = xs_flattened[hsplit_idxs[i]:all_rd.shape[1]] # x coordinates
         ys_split = ys_flattened[hsplit_idxs[i]:all_rd.shape[1]] # y coordinates
@@ -157,45 +149,46 @@ for i in range(0, len(hsplit_idxs)-1):
 
         # FOR EACH COLUMN GRAB FIRST AND SECOND RETURN AND SUBTRACT (ONLY IF THERE ARE AT LEAST TWO), WINDOW REMOVED
         for x_idx in range(0,radargram.shape[1]): 
-            coord_idxs = np.where(np.array(xs) == x_idx)
-            coord_idxs = coord_idxs[0]
-            # if there are at least 2 crossings at the x
-            if len(coord_idxs) > 2:
+            coord_idxs = np.where(np.array(xs) == x_idx)[0] # grab any chains in this column
+            if len(coord_idxs) > 2: # if there are at least 2 crossings at the x
                 cxs = []; cys = []
-                for idx in coord_idxs:
+                for idx in coord_idxs: # for each chain crossing
                     cxs.append(xs[idx]); cys.append(ys[idx]) # grab the x and y coordinates
 
                 # grab the first pair of ys that is > 1 apart
-                diff_idxs = np.where(np.diff(cys) > 1)[0]
-                if len(diff_idxs) > 0:
-                    diff_first = diff_idxs[0]
-                    diff_last = diff_idxs[-1]+1
-                    Isurf = int(cys[diff_first]) # grab the returns
-                    # Iground = int(cys[diff_first+1]) # grab the paired return
-                    Iground = int(cys[diff_last]) # grab the last return
+                diff_idxs = np.where(np.diff(cys) > 1)[0] # calculate the difference between the ys
+                if len(diff_idxs) > 0: # if not empty
+                    l=0
+                    Isurf = int(cys[diff_idxs[l]]) # find the surface index
+                    while Isurf < Isurf_min and l < len(diff_idxs): # while lower than the upper surface threshold, keep looking
+                        Isurf = int(cys[diff_idxs[l]])
+                        l+=1 # keep looping through the list until an Isurf is found
+                    if Isurf >= Isurf_min and Isurf <= Isurf_max: # if it lays between search bounds
+                        #look for ground index:
+                        for i in np.flip(range(1, len(diff_idxs))): # loop from last index to second index
+                            diff_last = diff_idxs[i]+1
+                            Iground = int(cys[diff_last]) # select the ground index
+                            if Iground >= Isurf_max and Iground <= (hmin_idx-20): # look below surface max
+                                # do not look within 20 pixels of the edge
+                                ax.plot(x_idx, Isurf, 'b.', alpha=a)# plot the surface return
+                                ax.plot(x_idx, Iground, 'r.', alpha=a)# plot the ground return
 
-                    if Isurf <= Isurf_thresh and Iground >= Isurf_thresh: # look within upper portion for surface return, ground peak must be below
-                        # depth = (TWT[Iground]-TWT[Isurf])*velocity/2 # calculate depth from TWTs
-                        # do not calculate depth 
-                        # print(depth)
-                        ax.plot(x_idx, Isurf, 'b.', alpha=a)# plot the surface return
-                        ax.plot(x_idx, Iground, 'r.', alpha=a)# plot the ground return
-
-                        rd_depth_xs.append(xs_split[x_idx]); rd_depth_ys.append(ys_split[x_idx])
-                        rd_surf_idxs.append(Isurf); rd_ground_idxs.append(Iground)
-                        rd_TWT_surf.append(TWT[Isurf][0]); rd_TWT_ground.append(TWT[Iground][0])
-                        rd_x_idxs.append(x_idx); rd_ids.append('rd'+str(counter).zfill(2))
-                    else:
+                                rd_depth_xs.append(xs_split[x_idx]); rd_depth_ys.append(ys_split[x_idx])
+                                rd_surf_idxs.append(Isurf); rd_ground_idxs.append(Iground)
+                                rd_TWT_surf.append(TWT[Isurf]); rd_TWT_ground.append(TWT[Iground])
+                                rd_x_idxs.append(x_idx); rd_ids.append('rd'+str(counter).zfill(2))
+                                
+                                break # stop looping through ground indexes
+                    else: # if no returns found in the surface bounds, append NaNs
                         rd_depth_xs.append(np.NaN); rd_depth_ys.append(np.NaN)
                         rd_surf_idxs.append(np.NaN); rd_ground_idxs.append(np.NaN)
                         rd_TWT_surf.append(np.NaN); rd_TWT_ground.append(np.NaN)
                         rd_x_idxs.append(np.NaN); rd_ids.append('rd'+str(counter).zfill(2))
-                else:
+                else: # if only 1 or 0 crossings, append NaNs
                     rd_depth_xs.append(np.NaN); rd_depth_ys.append(np.NaN)
                     rd_surf_idxs.append(np.NaN); rd_ground_idxs.append(np.NaN)
                     rd_TWT_surf.append(np.NaN); rd_TWT_ground.append(np.NaN)
                     rd_x_idxs.append(np.NaN); rd_ids.append('rd'+str(counter).zfill(2))
-
         # write to CSV 
         export_df = pd.DataFrame(list(zip(rd_depth_xs, rd_depth_ys, rd_surf_idxs, rd_ground_idxs, rd_x_idxs, rd_TWT_surf, rd_TWT_ground, rd_ids)), 
                                  columns=['x','y','Isurf','Iground','rd_xidx', 'TWT_surf', 'TWT_ground', 'rd_id'])
@@ -203,7 +196,7 @@ for i in range(0, len(hsplit_idxs)-1):
         ax.legend(['surface','ground'])
         plt.tight_layout() # display as figure
         plt.savefig(outpath +'rd'+str(counter).zfill(2)+'_'+str(wtmm_scale)+'scale_'+str(size_thresh)+'size_'+str(mod_thresh_multiplier)+'mod.jpg',dpi=200)
-        plt.show()
+        plt.close()
     counter+=1 # count the split radargrams
 
 
